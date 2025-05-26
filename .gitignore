@@ -175,3 +175,5 @@ cython_debug/
 
 # Ignore raw large files
 data/vehicles.csv
+
+car_reference.db
