@@ -38,7 +38,11 @@ def avg_price():
 @app.route("/api/reference-listings", methods=["GET"])
 def reference_listings():
     limit = request.args.get("limit", default=100, type=int)
-    listings = get_reference_listings(limit)
+    make  = request.args.get("make")
+    model = request.args.get("model")
+    year  = request.args.get("year", type=int)
+    
+    listings = get_reference_listings(limit, make, model, year)
     return jsonify(listings)
 
 # User Lisiting Queries

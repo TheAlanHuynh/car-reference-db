@@ -37,24 +37,39 @@ def get_average_price(make, model, year):
         "count": result["count"]
     }
     
-def get_reference_listings(limit=100):
+def get_reference_listings(limit=100, make=None, model=None, year=None):
     """
     Returns a list of reference vehicle listings for preview purposes.
     """
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    query = """
-    SELECT id, manufacturer, model, year, price, odometer, created_at
-    FROM vehicle_listings
-    ORDER BY created_at DESC
-    LIMIT ?
+
+    # build WHERE clause only for params that were provided
+    where = []
+    params = []
+    if make:
+        where.append("LOWER(manufacturer)=LOWER(?)")
+        params.append(make)
+    if model:
+        where.append("LOWER(model)=LOWER(?)")
+        params.append(model)
+    if year:
+        where.append("year=?")
+        params.append(year)
+
+    where_clause = "WHERE " + " AND ".join(where) if where else ""
+    query = f"""
+        SELECT id, manufacturer, model, year, price, odometer, created_at
+        FROM vehicle_listings
+        {where_clause}
+        ORDER BY created_at DESC
+        LIMIT ?
     """
-    
-    cursor.execute(query, (limit,))
+    params.append(limit)
+
+    cursor.execute(query, tuple(params))
     rows = cursor.fetchall()
     conn.close()
-    
     return [dict(row) for row in rows]
 
 def get_user_listings(limit=100):
