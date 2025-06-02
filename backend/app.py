@@ -1,14 +1,19 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from db import get_average_price
+from db import get_average_price, get_reference_listings, get_user_listings  # new functions you'll write
 
 app = Flask(__name__)
 CORS(app)  # Allow requests from React frontend
 
+# --------------------------------------------------
+# Reference Queries Category
+# --------------------------------------------------
+# Home Page - Route
 @app.route("/")
 def home():
     return "Car Reference API is running."
 
+# Average Price - Route
 @app.route("/api/avg-price", methods=["GET"])
 def avg_price():
     # Get parameters from query string
@@ -28,6 +33,20 @@ def avg_price():
     # Call the database query
     result = get_average_price(make, model, year)
     return jsonify(result)
+
+# Reference Listing Queries
+@app.route("/api/reference-listings", methods=["GET"])
+def reference_listings():
+    limit = request.args.get("limit", default=100, type=int)
+    listings = get_reference_listings(limit)
+    return jsonify(listings)
+
+# User Lisiting Queries
+@ app.route("/api/user-listings", methods=["GET"])
+def user_listings():
+    limit = request.args.get("limit", default=100, type=int)
+    listings = get_user_listings(limit)
+    return jsonify(listings)
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -177,3 +177,5 @@ cython_debug/
 data/vehicles.csv
 
 car_reference.db
+
+db/car_reference.db
