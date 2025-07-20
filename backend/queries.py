@@ -24,7 +24,7 @@ def get_average_price(make, model, year):
     query = """
     SELECT ROUND(AVG(price), 0) AS avg_price, COUNT(*) AS count
     FROM vehicle_listings
-    WHERE LOWER(manufacturer) = LOWER(?) AND LOWER(model) = LOWER(?) AND year = ?
+    WHERE LOWER(make) = LOWER(?) AND LOWER(model) = LOWER(?) AND year = ?
     """
 
     cursor.execute(query, (make, model, year))
@@ -48,7 +48,7 @@ def get_reference_listings(limit=100, make=None, model=None, year=None):
     where = []
     params = []
     if make:
-        where.append("LOWER(manufacturer)=LOWER(?)")
+        where.append("LOWER(make)=LOWER(?)")
         params.append(make)
     if model:
         where.append("LOWER(model)=LOWER(?)")
@@ -59,7 +59,7 @@ def get_reference_listings(limit=100, make=None, model=None, year=None):
 
     where_clause = "WHERE " + " AND ".join(where) if where else ""
     query = f"""
-        SELECT id, manufacturer, model, year, price, odometer, created_at
+        SELECT id, make, model, year, price, mileage_km, created_at
         FROM vehicle_listings
         {where_clause}
         ORDER BY created_at DESC
