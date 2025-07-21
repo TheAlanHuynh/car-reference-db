@@ -33,7 +33,7 @@ class UserListing(db.Model):
     model        = db.Column(db.Text)
     year         = db.Column(db.Integer)
     trim         = db.Column(db.Text)
-    price_cad    = db.Column(db.Integer)         # cents
+    price    = db.Column(db.Integer)         # cents
     mileage_km   = db.Column(db.Integer)
     city         = db.Column(db.Text)
     province     = db.Column(db.String(2))

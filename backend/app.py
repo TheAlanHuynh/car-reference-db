@@ -3,6 +3,12 @@ from pathlib import Path
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
+from backend.scrapers import get_scraper
+from urllib.parse import urlparse
+import json, datetime
+from backend.models import UserListing
+import backend.scrapers.dummy
+
 # 1. import the extension objects from backend.extensions
 from backend.extensions import db, migrate
 
@@ -62,6 +68,56 @@ def create_app():
         limit = request.args.get("limit", default=100, type=int)
         return jsonify(get_user_listings(limit))
 
+
+    @app.route("/api/submit-url", methods=["POST"])
+    def submit_url():
+        data = request.get_json(force=True)
+        url  = data.get("url")
+        if not url:
+            return jsonify({"error": "url is required"}), 400
+
+        scraper = get_scraper(url)
+        if scraper is None:
+            return jsonify({"error": "Unsupported domain"}), 400
+
+        try:
+            scraped = scraper.scrape(url)
+        except Exception as e:
+            return jsonify({"error": f"scrape failed: {e}"}), 502
+
+        universal = [
+            "make", "model", "year",
+            "price", "mileage_km",
+            "city", "province", "listing_date",
+        ]
+        missing = [f for f in universal if not scraped.get(f)]
+
+        listing = UserListing(
+            source_url    = url,
+            source_site   = urlparse(url).netloc,
+            scraped_at    = datetime.datetime.utcnow(),
+            missing_fields = json.dumps(missing),
+            raw_data       = json.dumps(scraped),
+            status         = "pending",
+            **{k: scraped.get(k) for k in universal + ["trim"]}
+        )
+
+        # upsert
+        existing = UserListing.query.filter_by(source_url=url).first()
+        if existing:
+            for k, v in listing.__dict__.items():
+                if k not in ("_sa_instance_state", "id") and v is not None:
+                    setattr(existing, k, v)
+            listing = existing
+        else:
+            db.session.add(listing)
+
+        db.session.commit()
+
+        return jsonify({
+            "listing": listing.to_dict(),
+            "next_step": "manual" if missing else "scoring",
+        }), 201
     # ---------------------------
     return app
 
