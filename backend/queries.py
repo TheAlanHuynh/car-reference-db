@@ -88,3 +88,20 @@ def get_user_listings(limit=100):
         
     conn.close()
     return [dict(row) for row in rows]
+
+def get_average_price_cents(make, model, year):
+    conn = get_db_connection()
+    cur  = conn.cursor()
+    cur.execute(
+        """
+        SELECT  ROUND(AVG(price), 0) AS avg_price
+        FROM    vehicle_listings
+        WHERE   lower(make)     = lower(?)
+        AND     lower(model)    = lower(?) 
+        AND     year=?
+        """,
+        (make, model, year)
+    )
+    row = cur.fetchone()
+    conn.close()
+    return row["avg_price"] if row and row["avg_price"] else None

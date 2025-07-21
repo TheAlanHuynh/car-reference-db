@@ -5,7 +5,8 @@ from flask_cors import CORS
 
 from backend.scrapers import get_scraper
 from urllib.parse import urlparse
-import json, datetime
+import json
+import datetime as dt
 from backend.models import UserListing
 import backend.scrapers.dummy
 
@@ -17,6 +18,7 @@ from backend.queries import (
     get_average_price,
     get_reference_listings,
     get_user_listings,
+    get_average_price_cents,
 )
 
 def create_app():
@@ -68,7 +70,6 @@ def create_app():
         limit = request.args.get("limit", default=100, type=int)
         return jsonify(get_user_listings(limit))
 
-
     @app.route("/api/submit-url", methods=["POST"])
     def submit_url():
         data = request.get_json(force=True)
@@ -95,7 +96,7 @@ def create_app():
         listing = UserListing(
             source_url    = url,
             source_site   = urlparse(url).netloc,
-            scraped_at    = datetime.datetime.utcnow(),
+            scraped_at    = dt.datetime.now(dt.timezone.utc),
             missing_fields = json.dumps(missing),
             raw_data       = json.dumps(scraped),
             status         = "pending",
@@ -118,9 +119,61 @@ def create_app():
             "listing": listing.to_dict(),
             "next_step": "manual" if missing else "scoring",
         }), 201
+
+    @app.route("/api/complete-listing", methods=["POST"])
+    def complete_listing():
+        data = request.get_json(force=True)
+        listing_id = data.get("id")
+        if not listing_id:
+            return jsonify({"error": "id is required"}), 400
+
+        listing: UserListing | None = UserListing.query.get(listing_id)
+        if not listing:
+            return jsonify({"error": "Listing not found"}), 404
+
+        # --- patch supplied fields ---
+        patchable = [
+            "price", "mileage_km", "city", "province",
+            "listing_date", "make", "model", "year", "trim"
+        ]
+        for field in patchable:
+            if field in data and data[field] is not None:
+                value = data[field]
+
+                # Convert ISO string → date object
+                if field == "listing_date" and isinstance(value, str):
+                    try:
+                        value = dt.date.fromisoformat(value)   # expects "YYYY-MM-DD"
+                    except ValueError:
+                        return jsonify({"error": "listing_date must be YYYY-MM-DD"}), 400
+                setattr(listing, field, value)
+
+        # recompute missing list
+        universal = ["make","model","year","price","mileage_km","city","province","listing_date"]
+        missing   = [f for f in universal if not getattr(listing, f)]
+        listing.missing_fields = json.dumps(missing)
+        listing.status = "completed" if not missing else "pending"
+
+        # --- deal score ---
+        avg = get_average_price_cents(listing.make, listing.model, listing.year)
+        score = None
+        if avg and listing.price:
+            ratio = listing.price / avg
+            if   ratio <= 0.90: score = "Great"
+            elif ratio <= 1.05: score = "Good"
+            elif ratio <= 1.20: score = "Fair"
+            else:               score = "Bad"
+        listing.deal_score = score
+
+        db.session.commit()
+
+        return jsonify({
+            "listing": listing.to_dict(),
+            "deal_score": score,
+            "next_step": "done" if not missing else "manual"
+        }), 200
     # ---------------------------
     return app
-
 
 # Dev entry-point
 if __name__ == "__main__":
