@@ -9,6 +9,7 @@ import json
 import datetime as dt
 from backend.models import UserListing
 import backend.scrapers.dummy
+import backend.scrapers.autotrader
 
 # 1. import the extension objects from backend.extensions
 from backend.extensions import db, migrate
