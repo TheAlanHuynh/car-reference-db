@@ -51,13 +51,16 @@ class AutotraderScraper:
         city     = loc.get("addressLocality")
         province = loc.get("addressRegion")
 
-        date_str = data.get("datePosted")
+        date_str = data.get("datePosted") or vehicle.get("offers", {}).get("validFrom")
         listing_date = None
         if date_str:
             try:
                 listing_date = dt.date.fromisoformat(date_str[:10])
             except ValueError:
                 pass
+
+        if listing_date is None:
+            listing_date = dt.date.today()          # fallback = fetch date
 
         brand = vehicle.get("brand")
         if isinstance(brand, dict):

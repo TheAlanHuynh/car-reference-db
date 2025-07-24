@@ -100,7 +100,7 @@ def create_app():
             source_site   = urlparse(url).netloc,
             scraped_at    = dt.datetime.now(dt.timezone.utc),
             missing_fields = json.dumps(missing),
-            raw_data       = json.dumps(scraped),
+            raw_data       = json.dumps(scraped, default=str),
             status         = "pending",
             **{k: scraped.get(k) for k in universal + ["trim"]}
         )
@@ -109,18 +109,22 @@ def create_app():
         existing = UserListing.query.filter_by(source_url=url).first()
         if existing:
             for k, v in listing.__dict__.items():
-                if k not in ("_sa_instance_state", "id") and v is not None:
-                    setattr(existing, k, v)
+                if k in ("_sa_instance_state", "id") or v is None:
+                    continue
+                # keep original listing_date once it’s set
+                if k == "listing_date" and getattr(existing, k):
+                    continue
+                setattr(existing, k, v)
             listing = existing
         else:
             db.session.add(listing)
-
+        
         db.session.commit()
-
+        
         return jsonify({
             "listing": listing.to_dict(),
             "next_step": "manual" if missing else "scoring",
-        }), 201
+        }), 201 
 
     @app.route("/api/complete-listing", methods=["POST"])
     def complete_listing():
