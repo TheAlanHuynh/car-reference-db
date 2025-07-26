@@ -30,6 +30,7 @@ LD_RE = re.compile(
 )
 KM_RE = re.compile(r"([\d,]+)\s*km", re.I)
 PRICE_RE = re.compile(r"\$?\s*([\d,]+)")
+AGO_RE = re.compile(r"Posted\s+(\d+)\s+(min|minute|hour|hrs?|day|days)\s+ago", re.I)
 
 @register("kijiji.ca")
 class KijijiScraper:
@@ -86,11 +87,25 @@ class KijijiScraper:
                 city, province = [x.strip() for x in loc_tag.text.split(",", 1)]
 
         listing_date = None
+        # JSON-LD sometimes has offers.validFrom
+        date_str = vehicle.get("offers", {}).get("validFrom") if data else None
         if date_str:
             try:
                 listing_date = dt.date.fromisoformat(date_str[:10])
             except ValueError:
                 pass
+
+        if listing_date is None:
+            # look at <span data-testid="listing-date">Posted 14 hrs ago</span>
+            rel = soup.find("span", {"data-testid": "listing-date"})
+            if rel and AGO_RE.search(rel.text):
+                qty, unit = AGO_RE.search(rel.text).groups()
+                qty = int(qty)
+                delta = {"min": "minutes", "minute": "minutes",
+                        "hour": "hours", "hrs": "hours",
+                        "day": "days"}[unit[:3]]
+                listing_date = (dt.datetime.now(dt.timezone.utc) -
+                                dt.timedelta(**{delta: qty})).date()
 
 
         # If price or mileage still missing, look inside __NEXT_DATA__
